@@ -32,7 +32,6 @@ jobs:
 
           ###############################################
           # 3. Validate main indeks format
-          # Allowed: RN|SI|RI ###/####
           ###############################################
           if ! echo "$MAIN_INDEX" | grep -Eq "^(RN|SI|RI) [0-9]{3}/[0-9]{4}$"; then
             echo "❌ indeks must match format: RN|SI|RI ###/#### (e.g., RN 123/2025)."
@@ -46,28 +45,11 @@ jobs:
           PAR_INDEX=$(grep "par:" -A2 "$FILE" | grep "indeks:"  | sed 's/indeks: *//;  s/"//g')
 
           ###############################################
-          # 5. Partner logic:
-          # Case A: both fields empty → OK
-          # Case B: both fields non-empty AND valid index → OK
+          # 5. Partner logic (strict):
+          # Case A: both empty → OK
+          # Case B: student non-empty AND index valid → OK
           # Otherwise → fail
           ###############################################
 
-          # Case A: both empty (working alone)
-          if [ -z "$PAR_STUDENT" ] && [ -z "$PAR_INDEX" ]; then
-            echo "✔ Working alone — par is empty."
-            exit 0
-          fi
+          # Case A: both empty → w
 
-          # If only one field is empty → fail
-          if [ -z "$PAR_STUDENT" ] || [ -z "$PAR_INDEX" ]; then
-            echo "❌ If partner is included, both student and indeks must be filled."
-            exit 1
-          fi
-
-          # Validate partner index
-          if ! echo "$PAR_INDEX" | grep -Eq "^(RN|SI|RI) [0-9]{3}/[0-9]{4}$"; then
-            echo "❌ par.indeks must match format: RN|SI|RI ###/####"
-            exit 1
-          fi
-
-          echo "✔ info.yml looks OK"
