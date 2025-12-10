@@ -4,6 +4,8 @@ import yaml
 
 index_pattern = r"^(RN|SI|RI) [0-9]{3}/[0-9]{4}$"
 
+DEFAULT_INDEX = "RN 000/2025"
+
 # -----------------------------------------------
 # 1. Load YAML with proper error distinction
 # -----------------------------------------------
@@ -33,14 +35,25 @@ if not isinstance(data, dict):
 student = (data.get("student") or "").strip()
 indeks = (data.get("indeks") or "").strip()
 
+# -----------------------------------------------
 # 3. Validate main student
+# -----------------------------------------------
 if not student:
     print("❌ 'student' field must not be empty.")
     sys.exit(1)
 
+# (NO default-name rejection — student may be Petar Petrović)
+
+# -----------------------------------------------
 # 4. Validate main indeks
+# -----------------------------------------------
 if not re.match(index_pattern, indeks):
     print("❌ 'indeks' must match RN|SI|RI ###/#### (e.g., RN 123/2025)")
+    sys.exit(1)
+
+# Reject the template placeholder
+if indeks == DEFAULT_INDEX:
+    print("❌ Indeks is still the default value. Have you updated info.yml?")
     sys.exit(1)
 
 # -----------------------------------------------
@@ -52,9 +65,12 @@ par_index = (par.get("indeks") or "").strip()
 
 # -----------------------------------------------
 # Partner logic (strict)
-# - allowed: both empty
-# - allowed: student non-empty + valid index
-# - everything else fails
+# Allowed:
+#   A) both empty
+#   B) student non-empty + valid index
+# Not allowed:
+#   - index non-empty but student empty
+#   - student non-empty but index invalid
 # -----------------------------------------------
 
 # Case A: both empty → OK
@@ -62,7 +78,7 @@ if par_student == "" and par_index == "":
     print("✔ Working alone")
     sys.exit(0)
 
-# Case B: student non-empty AND index valid → OK
+# Case B: student non-empty + valid index
 if par_student != "":
     if re.match(index_pattern, par_index):
         print("✔ Partner info valid")
