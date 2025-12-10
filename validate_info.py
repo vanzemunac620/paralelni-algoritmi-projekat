@@ -1,82 +1,77 @@
 import sys
 import re
+import yaml
 
-FILE = "info.yml"
+index_pattern = r"^(RN|SI|RI) [0-9]{3}/[0-9]{4}$"
 
-# Read the file
+# -----------------------------------------------
+# 1. Load YAML with proper error distinction
+# -----------------------------------------------
 try:
-    lines = open(FILE, encoding="utf8").read().splitlines()
-except Exception:
-    print("❌ Cannot read info.yml")
+    with open("info.yml", "r", encoding="utf8") as f:
+        content = f.read()
+except FileNotFoundError:
+    print("❌ info.yml is missing.")
     sys.exit(1)
 
-# Storage variables
-student = None
-indeks = None
-par_student = None
-par_indeks = None
+try:
+    data = yaml.safe_load(content)
+except yaml.YAMLError:
+    print("❌ info.yml exists but contains invalid YAML format.")
+    sys.exit(1)
+except Exception:
+    print("❌ Unknown error while reading info.yml.")
+    sys.exit(1)
 
-# Very small YAML parser for this specific file
-current_section = None
+if not isinstance(data, dict):
+    print("❌ info.yml is present but does not contain a valid YAML mapping.")
+    sys.exit(1)
 
-for line in lines:
-    stripped = line.strip()
-    if not stripped or stripped.startswith("#"):
-        continue
+# -----------------------------------------------
+# 2. Extract main fields
+# -----------------------------------------------
+student = (data.get("student") or "").strip()
+indeks = (data.get("indeks") or "").strip()
 
-    # Detect section "par:"
-    if stripped.startswith("par:"):
-        current_section = "par"
-        continue
-
-    # Key-value lines: key: value
-    if ":" in stripped:
-        key, value = stripped.split(":", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-
-        if current_section == "par":
-            if key == "student":
-                par_student = value
-            elif key == "indeks":
-                par_indeks = value
-        else:
-            if key == "student":
-                student = value
-            elif key == "indeks":
-                indeks = value
-
-# -------------------------------
-# Validation logic
-# -------------------------------
-
-# 1. Main student must not be empty
+# 3. Validate main student
 if not student:
     print("❌ 'student' field must not be empty.")
     sys.exit(1)
 
-# 2. Main indeks must match format
-if not indeks or not re.match(r"^(RN|SI|RI) [0-9]{3}/[0-9]{4}$", indeks):
+# 4. Validate main indeks
+if not re.match(index_pattern, indeks):
     print("❌ 'indeks' must match RN|SI|RI ###/#### (e.g., RN 123/2025)")
     sys.exit(1)
 
-# 3. Partner logic
-par_student = par_student or ""
-par_indeks = par_indeks or ""
+# -----------------------------------------------
+# 5. Extract partner block
+# -----------------------------------------------
+par = data.get("par") or {}
+par_student = (par.get("student") or "").strip()
+par_index = (par.get("indeks") or "").strip()
+
+# -----------------------------------------------
+# Partner logic (strict)
+# - allowed: both empty
+# - allowed: student non-empty + valid index
+# - everything else fails
+# -----------------------------------------------
 
 # Case A: both empty → OK
-if par_student == "" and par_indeks == "":
+if par_student == "" and par_index == "":
     print("✔ Working alone")
     sys.exit(0)
 
-# Case B: one empty, one filled → invalid
-if (par_student == "") != (par_indeks == ""):
-    print("❌ If partner is used, BOTH par.student and par.indeks must be filled.")
-    sys.exit(1)
+# Case B: student non-empty AND index valid → OK
+if par_student != "":
+    if re.match(index_pattern, par_index):
+        print("✔ Partner info valid")
+        sys.exit(0)
+    else:
+        print("❌ par.indeks must match RN|SI|RI ###/#### when par.student is provided.")
+        sys.exit(1)
 
-# Case C: indexed must be valid
-if not re.match(r"^(RN|SI|RI) [0-9]{3}/[0-9]{4}$", par_indeks):
-    print("❌ 'par.indeks' must match RN|SI|RI ###/####")
-    sys.exit(1)
+# Case C: index provided but student empty → invalid
+print("❌ par.indeks provided but par.student is empty.")
+sys.exit(1)
 
-print("✔ info.yml is valid")
